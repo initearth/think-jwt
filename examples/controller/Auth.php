@@ -19,7 +19,7 @@ class Auth
     {
         $token = Jwt::getToken([
             'user_id'  => 12,
-            'username' => 'youvision',
+            'username' => 'initearth',
         ]);
 
         return json([
