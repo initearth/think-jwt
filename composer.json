@@ -1,5 +1,5 @@
 {
-    "name": "youvision/think-jwt",
+    "name": "initearth/think-jwt",
     "description": "基于firebase php-jwt 6.10的ThinkPHP 8.0+ Jwt 验证",
     "keywords": [
         "auth",

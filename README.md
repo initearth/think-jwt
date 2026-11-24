@@ -26,7 +26,7 @@
 ## 安装
 
 ```sh
-composer require youvision/think-jwt
+composer require initearth/think-jwt
 ```
 
 安装后配置文件会自动发布到 `config/jwt.php`。
