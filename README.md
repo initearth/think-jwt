@@ -29,7 +29,7 @@
 composer require initearth/think-jwt
 ```
 
-安装后配置文件会自动发布到 `config/jwt.php`。
+安装后包配置会自动加载，不会覆盖应用已有的同名配置。请在 `.env` 中设置 `JWT_SECRET`；如需覆盖，可复制 `examples/config/jwt.php` 到应用 `config/jwt.php`。
 
 ## 配置
 
@@ -39,8 +39,8 @@ composer require initearth/think-jwt
 declare(strict_types=1);
 
 return [
-    // 加密密钥，必须设置，否则构造时抛出异常
-    'secret'  => 'ai@youvision',
+    // 加密密钥，从 .env 读取，必须设置，否则构造时抛出异常
+    'secret'  => env('JWT_SECRET', ''),
     // 刷新阈值（秒），用于判断令牌是否需要刷新，默认 10 小时
     'exp'     => (60 * 60) * 10,
     // 令牌有效期（秒），同时作为黑名单缓存时长，默认 7 天
@@ -48,7 +48,7 @@ return [
 ];
 ```
 
-> `secret` 为空时，`Jwt` 实例化即抛出 `未设置jwt秘钥`（错误码 `50002`）。
+> `JWT_SECRET` 为空时，`Jwt` 实例化即抛出 `未设置jwt秘钥`（错误码 `50002`）。请务必使用足够随机的密钥，不要使用示例中的默认字符串。
 
 ## 快速开始
 
@@ -78,7 +78,7 @@ class Auth
 
         $res = Jwt::Check($token);
         if ($res['code'] !== 1) {
-            return json(['code' => 0, 'msg' => $res['msg']]);
+            return json(['code' => $res['code'], 'msg' => $res['msg']]);
         }
 
         return json(['code' => 1, 'data' => $res['data']]);
@@ -117,8 +117,8 @@ Authorization: Bearer <token>
 | `Refresh(string $token = '')` | 刷新令牌，旧令牌加入黑名单 | `array` `{code, msg, data}` |
 | `Logout(string $token = '')` | 注销令牌，加入黑名单 | `array` `{code, msg, data}` |
 | `Parse(string $token = '', int $type = 0)` | 解析令牌，`$type=0` 返回 `data`，`$type=1` 返回完整载荷 | `array` |
-| `getRequestHeaders()` | 从 `$_SERVER['HTTP_AUTHORIZATION']` 提取令牌 | `string` |
-| `getRequestToken(Request $request)` | 从请求对象提取令牌（含备用头） | `string` |
+| `getRequestHeaders()` | 从 `$_SERVER['HTTP_AUTHORIZATION']` / `REDIRECT_HTTP_AUTHORIZATION` 严格提取 Bearer 令牌 | `string` |
+| `getRequestToken(\think\Request $request)` | 从请求对象提取令牌（含备用头，严格匹配 Bearer） | `string` |
 
 ### 返回结构
 
@@ -126,7 +126,7 @@ Authorization: Bearer <token>
 
 ```php
 [
-    'code' => 1,      // 1 成功，0 失败
+    'code' => 1,      // 1 成功；失败时为下方错误码，无明确错误码时为 0
     'msg'  => '',     // 提示信息
     'data' => [],     // 业务数据或新令牌
 ]
@@ -155,7 +155,7 @@ Jwt::Parse($token, 1);
 | `TOKEN_LOGOUT` | `20003` | 令牌已被注销 |
 | `TOKEN_DOMAIN` | `20004` | 域名失效 |
 
-错误码以异常码形式抛出，可通过 `$e->getCode()` 获取：
+`Parse()` 以异常码形式抛出错误，可通过 `$e->getCode()` 获取；`Check()` / `Refresh()` / `Logout()` 会把错误码填入返回的 `code` 字段：
 
 ```php
 try {
@@ -177,7 +177,7 @@ try {
 
 | 文件 | 说明 |
 | --- | --- |
-| `examples/config/jwt.php` | 配置文件，复制到应用 `config/jwt.php` |
+| `examples/config/jwt.php` | 配置文件模板，复制到应用 `config/jwt.php` 后按需覆盖 |
 | `examples/controller/Auth.php` | 签发 / 校验 / 刷新 / 注销控制器 |
 | `examples/middleware/JwtAuth.php` | 令牌鉴权中间件 |
 
@@ -195,6 +195,13 @@ Route::post('auth/logout', 'Auth/logout');
 Route::group('api', function () {
     // ...
 })->middleware(\app\middleware\JwtAuth::class);
+```
+
+## 测试
+
+```sh
+composer install
+composer test
 ```
 
 ## License

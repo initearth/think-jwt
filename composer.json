@@ -1,6 +1,6 @@
 {
     "name": "initearth/think-jwt",
-    "description": "基于firebase php-jwt 6.10的ThinkPHP 8.0+ Jwt 验证",
+    "description": "基于 firebase/php-jwt ^7.2 的 ThinkPHP 8.0+ JWT 验证",
     "keywords": [
         "auth",
         "authentication",
@@ -24,10 +24,21 @@
         "topthink/framework": "^8.0.0",
         "firebase/php-jwt": "^7.2"
     },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5"
+    },
     "autoload": {
         "psr-4": {
             "think\\": "src/"
         }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
     },
     "extra": {
         "think": {

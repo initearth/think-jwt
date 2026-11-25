@@ -41,7 +41,7 @@ class Auth
 
         $res = Jwt::Check($token);
         if ($res['code'] !== 1) {
-            return json(['code' => 0, 'msg' => $res['msg']]);
+            return json(['code' => $res['code'], 'msg' => $res['msg']]);
         }
 
         return json([

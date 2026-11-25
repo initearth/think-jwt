@@ -24,16 +24,14 @@ class JwtAuth
      */
     public function handle(Request $request, \Closure $next): Response
     {
-        $token = (string) $request->header('authorization', '');
-        $token = trim(str_ireplace('bearer', '', $token));
-
+        $token = Jwt::getRequestToken($request);
         if ($token === '') {
             return json(['code' => 0, 'msg' => '未提供令牌']);
         }
 
         $res = Jwt::Check($token);
         if ($res['code'] !== 1) {
-            return json(['code' => 0, 'msg' => $res['msg']]);
+            return json(['code' => $res['code'], 'msg' => $res['msg']]);
         }
 
         // 将业务数据挂载到请求对象，供后续控制器使用
