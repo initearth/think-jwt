@@ -143,6 +143,21 @@ final class JwtTest extends TestCase
         $this->assertSame('fallback.token.value', $jwt->getRequestToken($request));
     }
 
+    public function testGetClientTokenReadsHeaderOnly(): void
+    {
+        $jwt = $this->jwt();
+
+        $this->assertSame('', $jwt->getClientToken());
+        $this->assertSame('', $jwt->getRequestToken(new FakeRequest([])));
+
+        $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer header-token';
+        $this->assertSame('header-token', $jwt->getClientToken());
+        $this->assertSame('header-token', $jwt->getRequestHeaders());
+
+        unset($_SERVER['HTTP_AUTHORIZATION']);
+        $this->assertSame('', $jwt->getClientToken());
+    }
+
     public function testParseRejectsPayloadWithoutRequiredFields(): void
     {
         $jwt = $this->jwt();

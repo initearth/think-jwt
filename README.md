@@ -1,8 +1,3 @@
-## ThinkPHP-PanGu - 盘古ThinkPHP开源索引!
-面向 ThinkPHP 的开源工程索引：组件、框架、服务与发布工具，按能力组织，持续整理。
-仓库地址：**<https://github.com/initearth/ThinkPHP-PanGu/>**
-在线站点：**<https://initearth.github.io/ThinkPHP-PanGu/>**
-
 # think-jwt
 
 基于 [firebase/php-jwt](https://github.com/firebase/php-jwt) 的 **ThinkPHP 8** JWT 认证扩展，开箱即用，支持令牌签发、验证、刷新与注销（黑名单）。
@@ -70,11 +65,11 @@ class Auth
     }
 
     /**
-     * 校验令牌（从请求头读取）
+     * 校验令牌
      */
     public function check()
     {
-        $token = Jwt::getRequestHeaders();
+        $token = Jwt::getClientToken();
 
         $res = Jwt::Check($token);
         if ($res['code'] !== 1) {
@@ -89,7 +84,7 @@ class Auth
      */
     public function refresh()
     {
-        return Jwt::Refresh(Jwt::getRequestHeaders());
+        return Jwt::Refresh(Jwt::getClientToken());
     }
 
     /**
@@ -97,16 +92,18 @@ class Auth
      */
     public function logout()
     {
-        return Jwt::Logout(Jwt::getRequestHeaders());
+        return Jwt::Logout(Jwt::getClientToken());
     }
 }
 ```
 
-请求头格式：
+客户端传递方式仅支持请求头：
 
-```
+```http
 Authorization: Bearer <token>
 ```
+
+`Bearer` 大小写不敏感，但必须严格是 `Bearer <token>` 格式，其他格式返回空字符串。
 
 ## API
 
@@ -117,8 +114,9 @@ Authorization: Bearer <token>
 | `Refresh(string $token = '')` | 刷新令牌，旧令牌加入黑名单 | `array` `{code, msg, data}` |
 | `Logout(string $token = '')` | 注销令牌，加入黑名单 | `array` `{code, msg, data}` |
 | `Parse(string $token = '', int $type = 0)` | 解析令牌，`$type=0` 返回 `data`，`$type=1` 返回完整载荷 | `array` |
-| `getRequestHeaders()` | 从 `$_SERVER['HTTP_AUTHORIZATION']` / `REDIRECT_HTTP_AUTHORIZATION` 严格提取 Bearer 令牌 | `string` |
-| `getRequestToken(\think\Request $request)` | 从请求对象提取令牌（含备用头，严格匹配 Bearer） | `string` |
+| `getRequestHeaders()` | 仅从 `$_SERVER['HTTP_AUTHORIZATION']` / `REDIRECT_HTTP_AUTHORIZATION` 严格提取 Bearer 令牌 | `string` |
+| `getRequestToken(\think\Request $request)` | 从请求对象提取令牌，仅读 Authorization Bearer 头（含备用头） | `string` |
+| `getClientToken()` | 从请求中提取令牌，仅读 Authorization Bearer 头，无需 Request 对象 | `string` |
 
 ### 返回结构
 
@@ -167,7 +165,7 @@ try {
 
 ## 黑名单机制
 
-刷新与注销时，令牌的唯一标识 `jwt_ide` 会写入缓存（键名 `jwt_ide_{id}`，时长与 `refresh` 一致）。后续 `Parse` / `Check` 时命中即判定令牌已失效。
+刷新与注销时，令牌的唯一标识 `jwt_ide` 会写入缓存（键名 `jwt_ide_{id}`，时长与 `refresh` 一致）。后续 `Parse` / `Check` 时命中缓存即判定令牌已注销。
 
 > 请确保应用已配置缓存驱动，并保证多节点部署时缓存共享。
 
@@ -204,6 +202,7 @@ composer install
 composer test
 ```
 
-## License
-
-Apache-2.0
+## ThinkPHP-PanGu - 盘古ThinkPHP开源索引!
+面向 ThinkPHP 的开源工程索引：组件、框架、服务与发布工具，按能力组织，持续整理。
+仓库地址：**<https://github.com/initearth/ThinkPHP-PanGu/>**
+在线站点：**<https://initearth.github.io/ThinkPHP-PanGu/>**

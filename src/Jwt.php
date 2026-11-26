@@ -77,7 +77,7 @@ class Jwt
      *
      * 本函数主要用于通过令牌验证用户身份或访问权限
      * 它首先会对传入的令牌进行解析,然后检查令牌的生效时间是否在当前时间之前
-     * 如果令牌尚未生效或已经过期,将会抛出异常
+     * 如果令牌尚未生效或者已经过期,将会抛出异常
      * 如果令牌有效,則会将其转换为数组形式并返回
      *
      * @param string $token 待验证的令牌字符串.默认为空,表示使用默认的令牌
@@ -274,6 +274,16 @@ class Jwt
     }
 
     /**
+     * 从客户端请求中获取令牌（当前仅 Authorization Bearer 头）
+     *
+     * @return string 未获取到时返回空字符串
+     */
+    public function getClientToken()
+    {
+        return $this->getRequestHeaders();
+    }
+
+    /**
      * 检查JWT标识是否在黑名单中
      *
      * @param string $jwt_ide JWT标识符,用于在黑名单中进行查找
@@ -316,7 +326,7 @@ class Jwt
      * 将对象转换为数组
      * 这个函数递归处理对象中的所有属性,确保所有属性都被转换为数组形式
      *
-     * @param mixed|object|array $obj 要转换的对象或数组
+     * @param mixed|object|array $obj 要转换的对象
      * @return mixed|array 转换后的数组
      */
     public function objectToArray($obj)

@@ -34,7 +34,7 @@ class Auth
      */
     public function check(): Response
     {
-        $token = Jwt::getRequestHeaders();
+        $token = Jwt::getClientToken();
         if ($token === '') {
             return json(['code' => 0, 'msg' => '未提供令牌']);
         }
@@ -56,7 +56,7 @@ class Auth
      */
     public function refresh(): Response
     {
-        $res = Jwt::Refresh(Jwt::getRequestHeaders());
+        $res = Jwt::Refresh(Jwt::getClientToken());
 
         return json($res);
     }
@@ -66,7 +66,7 @@ class Auth
      */
     public function logout(): Response
     {
-        $res = Jwt::Logout(Jwt::getRequestHeaders());
+        $res = Jwt::Logout(Jwt::getClientToken());
 
         return json($res);
     }
