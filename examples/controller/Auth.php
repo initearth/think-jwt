@@ -4,70 +4,51 @@ declare(strict_types=1);
 
 namespace app\controller;
 
+use Initearth\ThinkResponse\Facade\Response;
 use think\facade\Jwt;
-use think\Response;
+use think\Response as ThinkResponse;
 
 /**
  * 令牌签发 / 校验 / 刷新 / 注销 示例
+ *
+ * Check / Refresh / Logout 直接返回 think-response 标准结构
  */
 class Auth
 {
     /**
      * 签发令牌
      */
-    public function create(): Response
+    public function create(): ThinkResponse
     {
         $token = Jwt::getToken([
             'user_id'  => 12,
             'username' => 'initearth',
         ]);
 
-        return json([
-            'code' => 1,
-            'msg'  => '签发成功',
-            'data' => ['token' => $token],
-        ]);
+        return Response::success(['token' => $token], '签发成功');
     }
 
     /**
      * 校验令牌
      */
-    public function check(): Response
+    public function check(): ThinkResponse
     {
-        $token = Jwt::getClientToken();
-        if ($token === '') {
-            return json(['code' => 0, 'msg' => '未提供令牌']);
-        }
-
-        $res = Jwt::Check($token);
-        if ($res['code'] !== 1) {
-            return json(['code' => $res['code'], 'msg' => $res['msg']]);
-        }
-
-        return json([
-            'code' => 1,
-            'msg'  => '校验通过',
-            'data' => $res['data'],
-        ]);
+        return json(Jwt::Check(Jwt::getClientToken()));
     }
 
     /**
      * 刷新令牌
      */
-    public function refresh(): Response
+    public function refresh(): ThinkResponse
     {
-        $res = Jwt::Refresh(Jwt::getClientToken());
-
-        return json($res);
+        return json(Jwt::Refresh(Jwt::getClientToken()));
     }
 
     /**
      * 注销令牌
      */
-    public function logout(): Response
+    public function logout(): ThinkResponse
     {
-        $res = Jwt::Logout(Jwt::getClientToken());
-
-        return json($res);
+        return json(Jwt::Logout(Jwt::getClientToken()));
     }
 }

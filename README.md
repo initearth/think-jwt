@@ -8,6 +8,7 @@
 - 基于 `firebase/php-jwt ^7.2`，默认 `HS256` 算法
 - `Facade` 门面调用，一行代码即可签发 / 校验
 - 令牌唯一标识（`jwt_ide`），配合缓存实现刷新与注销黑名单
+- 返回结构采用 `initearth/think-response` 标准模式：`status / code / message / data / error`
 - 完整错误码，便于前端统一处理
 
 ## 环境要求
@@ -50,49 +51,46 @@ return [
 ```php
 <?php
 
-namespace app\index\controller;
+namespace app\controller;
 
+use Initearth\ThinkResponse\Facade\Response;
 use think\facade\Jwt;
+use think\Response as ThinkResponse;
 
 class Auth
 {
     /**
      * 签发令牌
      */
-    public function create()
+    public function create(): ThinkResponse
     {
-        return Jwt::getToken(['user_id' => 12]);
+        $token = Jwt::getToken(['user_id' => 12]);
+
+        return Response::success(['token' => $token], '签发成功');
     }
 
     /**
      * 校验令牌
      */
-    public function check()
+    public function check(): ThinkResponse
     {
-        $token = Jwt::getClientToken();
-
-        $res = Jwt::Check($token);
-        if ($res['code'] !== 1) {
-            return json(['code' => $res['code'], 'msg' => $res['msg']]);
-        }
-
-        return json(['code' => 1, 'data' => $res['data']]);
+        return json(Jwt::Check(Jwt::getClientToken()));
     }
 
     /**
      * 刷新令牌
      */
-    public function refresh()
+    public function refresh(): ThinkResponse
     {
-        return Jwt::Refresh(Jwt::getClientToken());
+        return json(Jwt::Refresh(Jwt::getClientToken()));
     }
 
     /**
      * 注销令牌
      */
-    public function logout()
+    public function logout(): ThinkResponse
     {
-        return Jwt::Logout(Jwt::getClientToken());
+        return json(Jwt::Logout(Jwt::getClientToken()));
     }
 }
 ```
@@ -110,9 +108,9 @@ Authorization: Bearer <token>
 | 方法 | 说明 | 返回 |
 | --- | --- | --- |
 | `getToken(array $data = [])` | 签发令牌，`$data` 为自定义载荷 | `string` JWT |
-| `Check(string $token = '')` | 校验令牌有效性 | `array` `{code, msg, data}` |
-| `Refresh(string $token = '')` | 刷新令牌，旧令牌加入黑名单 | `array` `{code, msg, data}` |
-| `Logout(string $token = '')` | 注销令牌，加入黑名单 | `array` `{code, msg, data}` |
+| `Check(string $token = '')` | 校验令牌有效性 | `array` `{status, code, message, data, error}` |
+| `Refresh(string $token = '')` | 刷新令牌，旧令牌加入黑名单 | `array` `{status, code, message, data, error}` |
+| `Logout(string $token = '')` | 注销令牌，加入黑名单 | `array` `{status, code, message, data, error}` |
 | `Parse(string $token = '', int $type = 0)` | 解析令牌，`$type=0` 返回 `data`，`$type=1` 返回完整载荷 | `array` |
 | `getRequestHeaders()` | 仅从 `$_SERVER['HTTP_AUTHORIZATION']` / `REDIRECT_HTTP_AUTHORIZATION` 严格提取 Bearer 令牌 | `string` |
 | `getRequestToken(\think\Request $request)` | 从请求对象提取令牌，仅读 Authorization Bearer 头（含备用头） | `string` |
@@ -120,14 +118,53 @@ Authorization: Bearer <token>
 
 ### 返回结构
 
-`Check`、`Refresh`、`Logout` 统一返回：
+`Check`、`Refresh`、`Logout` 在库层面直接使用 `initearth/think-response` 的 `Formatter` 输出标准五字段结构：
 
 ```php
 [
-    'code' => 1,      // 1 成功；失败时为下方错误码，无明确错误码时为 0
-    'msg'  => '',     // 提示信息
-    'data' => [],     // 业务数据或新令牌
+    'status'  => 'success', // success / error / fail
+    'code'    => 200,       // 映射后的响应码
+    'message' => '操作成功',
+    'data'    => [],        // 业务数据或新令牌
+    'error'   => [],        // 错误详情
 ]
+```
+
+Jwt 内部错误码映射规则：
+
+- 成功 → `200`
+- `50001` / `50002` → `500`
+- `20001` ~ `20004` → `401`
+- 其他错误码 → `400`
+
+控制器可直接返回：
+
+```php
+return json(Jwt::Check(Jwt::getClientToken()));
+```
+
+成功响应：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "操作成功",
+  "data": {"user_id": 12},
+  "error": {}
+}
+```
+
+失败响应：
+
+```json
+{
+  "status": "error",
+  "code": 401,
+  "message": "token已被注销",
+  "data": {},
+  "error": {}
+}
 ```
 
 ### Parse 返回
@@ -145,15 +182,20 @@ Jwt::Parse($token, 1);
 
 | 常量 | 值 | 说明 |
 | --- | --- | --- |
-| `ENCRYPT_EORROR` | `50001` | JWT 加密运算异常 |
-| `JWT_SECRET_MISS` | `50002` | 未设置 JWT 密钥 |
-| `INVALID_TOKEN` | `40001` | 令牌格式非法 / 签名无效 / 尚未生效 |
-| `TOKEN_EXPIRE` | `20001` | 令牌需要刷新 |
-| `TOKEN_EXPIRE_LONG` | `20002` | 令牌已过期 |
-| `TOKEN_LOGOUT` | `20003` | 令牌已被注销 |
-| `TOKEN_DOMAIN` | `20004` | 域名失效 |
+| `SUCCESS` | `1` | 业务成功码 |
+| `ENCRYPT_EORROR` | `50001` | 签发失败（对应 `JWT::encode()` 抛出的异常） |
+| `JWT_SECRET_MISS` | `50002` | 未设置 JWT 密钥（对应 `InvalidArgumentException`） |
+| `INVALID_TOKEN` | `40001` | 令牌格式异常（对应 `UnexpectedValueException`） |
+| `SIGNATURE_INVALID` | `40002` | 签名无效（对应 `SignatureInvalidException`） |
+| `TOKEN_NOT_YET_VALID` | `40003` | 令牌尚未生效（对应 `BeforeValidException`） |
+| `PAYLOAD_INVALID` | `40004` | 载荷缺少 `jwt_ide` / `data` 等必要字段 |
+| `TOKEN_MISSING` | `40005` | 未提供令牌 |
+| `TOKEN_EXPIRE` | `20001` | 令牌签发时长超过刷新阈值，需要刷新 |
+| `TOKEN_EXPIRE_LONG` | `20002` | 令牌已过期（对应 `ExpiredException`） |
+| `TOKEN_LOGOUT` | `20003` | 令牌已被注销（命中缓存黑名单） |
+| `TOKEN_DOMAIN` | `20004` | 算法 / 密钥 / JSON 处理异常（对应 `DomainException`） |
 
-`Parse()` 以异常码形式抛出错误，可通过 `$e->getCode()` 获取；`Check()` / `Refresh()` / `Logout()` 会把错误码填入返回的 `code` 字段：
+`Parse()` 以异常码形式抛出错误，可通过 `$e->getCode()` 获取下表常量；`Check()` / `Refresh()` / `Logout()` 返回的 `message` 保留原始错误信息，`code` 则是映射后的响应码：
 
 ```php
 try {

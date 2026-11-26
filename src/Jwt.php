@@ -9,6 +9,7 @@ use Firebase\JWT\BeforeValidException;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\Key;
 use Firebase\JWT\SignatureInvalidException;
+use Initearth\ThinkResponse\Support\Formatter;
 use InvalidArgumentException;
 use UnexpectedValueException;
 use think\Request;
@@ -19,13 +20,18 @@ class Jwt
     protected $secret = '';
     protected $exp = 3600; //一小时
     protected $refresh = 604800; //七天
+    public const SUCCESS = 1; //业务成功码
     public const ENCRYPT_EORROR = 50001; //jwt加密算法运算时异常
     public const JWT_SECRET_MISS = 50002; //jwt加密秘钥值未设置
-    public const INVALID_TOKEN = 40001; //token格式不正确不合法,异常的token
+    public const INVALID_TOKEN = 40001; //firebase/php-jwt UnexpectedValueException：令牌格式异常
+    public const SIGNATURE_INVALID = 40002; //firebase/php-jwt SignatureInvalidException：签名无效
+    public const TOKEN_NOT_YET_VALID = 40003; //firebase/php-jwt BeforeValidException：令牌尚未生效
+    public const PAYLOAD_INVALID = 40004; //载荷缺少必要字段
+    public const TOKEN_MISSING = 40005; //未提供令牌
     public const TOKEN_EXPIRE = 20001; //token过期,需要刷新
-    public const TOKEN_EXPIRE_LONG = 20002; //token过期,过期时间超过上限
+    public const TOKEN_EXPIRE_LONG = 20002; //firebase/php-jwt ExpiredException：token已过期
     public const TOKEN_LOGOUT = 20003; //token已经被注销
-    public const TOKEN_DOMAIN = 20004; //JWT 域校验失败
+    public const TOKEN_DOMAIN = 20004; //firebase/php-jwt DomainException：算法/密钥/JSON 处理异常
 
     /**
      * 根据配置文件设置相关参数
@@ -86,10 +92,7 @@ class Jwt
      */
     public function Check($token = '')
     {
-        $json = [];
-        $json['code'] = 0;
-        $json['msg'] = '';
-        $json['data'] = '';
+        $json = $this->result(0, '');
         try {
             // 解析传入的令牌,获取令牌中的数据和标识
             $arr = $this->Parse($token, 1);
@@ -97,11 +100,9 @@ class Jwt
             if (time() - (int) $arr['nbf'] >= $this->exp) {
                 throw new \Exception('token过期需要刷新', self::TOKEN_EXPIRE);
             }
-            $json['code'] = 1;
-            $json['data'] = $arr['data'];
+            $json = $this->result(self::SUCCESS, '', $arr['data']);
         } catch (\Exception $e) {
-            $json['code'] = $e->getCode() ?: 0;
-            $json['msg'] = $e->getMessage();
+            $json = $this->result($e->getCode() ?: 0, $e->getMessage());
         }
         return $json;
     }
@@ -116,10 +117,7 @@ class Jwt
      */
     public function Refresh($token = '')
     {
-        $json = [];
-        $json['code'] = 0;
-        $json['msg'] = '';
-        $json['data'] = '';
+        $json = $this->result(0, '');
         try {
             // 解析传入的令牌,获取令牌中的数据和标识
             $arr = $this->Parse($token, 1);
@@ -127,12 +125,9 @@ class Jwt
             $this->AddBlacklist($arr['jwt_ide']);
             // 基于令牌数据生成并返回新令牌
             $data = $this->getToken($arr['data']);
-            $json['code'] = 1;
-            $json['msg'] = '刷新令牌成功';
-            $json['data'] = $data;
+            $json = $this->result(self::SUCCESS, '刷新令牌成功', $data);
         } catch (\Exception $e) {
-            $json['code'] = $e->getCode() ?: 0;
-            $json['msg'] = $e->getMessage();
+            $json = $this->result($e->getCode() ?: 0, $e->getMessage());
         }
         return $json;
     }
@@ -148,20 +143,15 @@ class Jwt
      */
     public function Logout($token = '')
     {
-        $json = [];
-        $json['code'] = 0;
-        $json['msg'] = '';
-        $json['data'] = '';
+        $json = $this->result(0, '');
         try {
             // 解析传入的令牌,获取令牌中的数据和标识
             $arr = $this->Parse($token, 1);
             // 将旧令牌标识加入黑名单,防止重复使用
             $this->AddBlacklist($arr['jwt_ide']);
-            $json['code'] = 1;
-            $json['msg'] = '注销令牌成功';
+            $json = $this->result(self::SUCCESS, '注销令牌成功');
         } catch (\Exception $e) {
-            $json['code'] = $e->getCode() ?: 0;
-            $json['msg'] = $e->getMessage();
+            $json = $this->result($e->getCode() ?: 0, $e->getMessage());
         }
         return $json;
     }
@@ -180,21 +170,25 @@ class Jwt
      */
     public function Parse($token = '', $type = 0)
     {
+        if ((string) $token === '') {
+            throw new \Exception('未提供令牌', self::TOKEN_MISSING);
+        }
+
         $result = [];
         try {
             // 使用JWT库解码令牌,检查是否设置了秘钥
             $token_obj = \Firebase\JWT\JWT::decode($token, new Key($this->secret, 'HS256'));
         } catch (SignatureInvalidException $e) {
             // 特定异常必须先于 UnexpectedValueException 捕获
-            throw new \Exception('签名无效:' . $e->getMessage(), self::INVALID_TOKEN);
+            throw new \Exception('签名无效:' . $e->getMessage(), self::SIGNATURE_INVALID);
         } catch (ExpiredException $e) {
             throw new \Exception('令牌已过期:' . $e->getMessage(), self::TOKEN_EXPIRE_LONG);
         } catch (BeforeValidException $e) {
-            throw new \Exception('令牌尚未生效:' . $e->getMessage(), self::INVALID_TOKEN);
+            throw new \Exception('令牌尚未生效:' . $e->getMessage(), self::TOKEN_NOT_YET_VALID);
         } catch (InvalidArgumentException $e) {
             throw new \Exception('未设置jwt秘钥', self::JWT_SECRET_MISS);
         } catch (DomainException $e) {
-            throw new \Exception('域名失效:' . $e->getMessage(), self::TOKEN_DOMAIN);
+            throw new \Exception('算法/密钥/JSON 处理异常:' . $e->getMessage(), self::TOKEN_DOMAIN);
         } catch (UnexpectedValueException $e) {
             throw new \Exception('令牌格式异常:' . $e->getMessage(), self::INVALID_TOKEN);
         }
@@ -203,7 +197,7 @@ class Jwt
         if (!is_object($token_obj)
             || !property_exists($token_obj, 'jwt_ide')
             || !property_exists($token_obj, 'data')) {
-            throw new \Exception('令牌载荷缺少必要字段', self::INVALID_TOKEN);
+            throw new \Exception('令牌载荷缺少必要字段', self::PAYLOAD_INVALID);
         }
 
         // 检查解码后的令牌是否在黑名单中
@@ -306,6 +300,53 @@ class Jwt
         $key = 'jwt_ide_' . $jwt_ide;
         cache($key, 1, $this->refresh);
         return true;
+    }
+
+    /**
+     * 构造 initearth/think-response 标准返回结构
+     *
+     * @param int $code Jwt 业务状态码
+     * @param mixed $msg 提示信息
+     * @param mixed $data 业务数据
+     * @return array{status:string,code:int,message:string,data:mixed,error:mixed}
+     */
+    protected function result(int $code, $msg, $data = '')
+    {
+        $failed = $code !== self::SUCCESS;
+
+        return (new Formatter())->format(
+            $data,
+            (string) $msg,
+            $this->responseCode($code),
+            null,
+            $failed
+        );
+    }
+
+    /**
+     * 将 Jwt 错误码映射为 think-response 支持的响应码
+     *
+     * @param int $code Jwt 业务状态码
+     * @return int HTTP / 业务响应码
+     */
+    protected function responseCode(int $code): int
+    {
+        if ($code === self::SUCCESS) {
+            return 200;
+        }
+        if (in_array($code, [self::ENCRYPT_EORROR, self::JWT_SECRET_MISS], true)) {
+            return 500;
+        }
+        if (in_array($code, [
+            self::TOKEN_EXPIRE,
+            self::TOKEN_EXPIRE_LONG,
+            self::TOKEN_LOGOUT,
+            self::TOKEN_DOMAIN,
+        ], true)) {
+            return 401;
+        }
+
+        return 400;
     }
 
     /**

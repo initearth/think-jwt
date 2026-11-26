@@ -9,6 +9,8 @@
         "thinkphp"
     ],
     "license": "Apache-2.0",
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "authors": [
         {
             "name": "initearth",
@@ -19,10 +21,33 @@
             "role": "Developer"
         }
     ],
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../think-response",
+            "options": {
+                "symlink": true,
+                "versions": {
+                    "initearth/think-response": "dev-main"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "../think-enum",
+            "options": {
+                "symlink": true,
+                "versions": {
+                    "initearth/think-enum": "dev-main"
+                }
+            }
+        }
+    ],
     "require": {
         "php": ">=8.2.0",
         "topthink/framework": "^8.0.0",
-        "firebase/php-jwt": "^7.2"
+        "firebase/php-jwt": "^7.2",
+        "initearth/think-response": "dev-main"
     },
     "require-dev": {
         "phpunit/phpunit": "^11.5"

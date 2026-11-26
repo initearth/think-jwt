@@ -32,7 +32,7 @@ final class JwtTest extends TestCase
         $this->assertSame(['user_id' => 12], $jwt->Parse($token));
     }
 
-    public function testTamperedSignatureThrowsInvalidTokenCode(): void
+    public function testTamperedSignatureThrowsSignatureInvalidCode(): void
     {
         $jwt = $this->jwt();
         $parts = explode('.', $jwt->getToken(['user_id' => 1]));
@@ -43,7 +43,7 @@ final class JwtTest extends TestCase
             $jwt->Parse($tampered);
             $this->fail('篡改签名后应抛出异常');
         } catch (\Exception $e) {
-            $this->assertSame(ThinkJwt::INVALID_TOKEN, $e->getCode());
+            $this->assertSame(ThinkJwt::SIGNATURE_INVALID, $e->getCode());
             $this->assertStringContainsString('签名无效', $e->getMessage());
         }
     }
@@ -67,6 +67,25 @@ final class JwtTest extends TestCase
         }
     }
 
+    public function testBeforeValidTokenThrowsNotYetValidCode(): void
+    {
+        $jwt = $this->jwt();
+        $token = $this->sign([
+            'nbf'     => time() + 3600,
+            'exp'     => time() + 7200,
+            'jwt_ide' => 'future-id',
+            'data'    => ['user_id' => 1],
+        ]);
+
+        try {
+            $jwt->Parse($token);
+            $this->fail('尚未生效的令牌应抛出异常');
+        } catch (\Exception $e) {
+            $this->assertSame(ThinkJwt::TOKEN_NOT_YET_VALID, $e->getCode());
+            $this->assertStringContainsString('令牌尚未生效', $e->getMessage());
+        }
+    }
+
     public function testCheckUsesRefreshThreshold(): void
     {
         $jwt = $this->jwt(60);
@@ -78,17 +97,26 @@ final class JwtTest extends TestCase
         ]);
 
         $res = $jwt->Check($token);
-        $this->assertSame(ThinkJwt::TOKEN_EXPIRE, $res['code']);
-        $this->assertSame('token过期需要刷新', $res['msg']);
+        $this->assertSame(['status', 'code', 'message', 'data', 'error'], array_keys($res));
+        $this->assertSame('error', $res['status']);
+        $this->assertSame(401, $res['code']);
+        $this->assertSame('token过期需要刷新', $res['message']);
 
         $fresh = $jwt->getToken(['user_id' => 2]);
-        $this->assertSame(1, $jwt->Check($fresh)['code']);
+        $this->assertSame(200, $jwt->Check($fresh)['code']);
     }
 
-    public function testCheckReturnsErrorCodeForInvalidToken(): void
+    public function testCheckReturnsErrorCodeForMissingToken(): void
+    {
+        $res = $this->jwt()->Check('');
+        $this->assertSame(400, $res['code']);
+        $this->assertSame('未提供令牌', $res['message']);
+    }
+
+    public function testCheckReturnsErrorCodeForMalformedToken(): void
     {
         $res = $this->jwt()->Check('not-a-token');
-        $this->assertSame(ThinkJwt::INVALID_TOKEN, $res['code']);
+        $this->assertSame(400, $res['code']);
     }
 
     public function testRefreshAndLogoutBlacklistOldToken(): void
@@ -97,7 +125,8 @@ final class JwtTest extends TestCase
         $token = $jwt->getToken(['user_id' => 7]);
 
         $res = $jwt->Refresh($token);
-        $this->assertSame(1, $res['code']);
+        $this->assertSame(['status', 'code', 'message', 'data', 'error'], array_keys($res));
+        $this->assertSame(200, $res['code']);
         $this->assertNotSame($token, $res['data']);
         $this->assertSame(['user_id' => 7], $jwt->Parse($res['data']));
 
@@ -108,7 +137,9 @@ final class JwtTest extends TestCase
             $this->assertSame(ThinkJwt::TOKEN_LOGOUT, $e->getCode());
         }
 
-        $this->assertSame(1, $jwt->Logout($res['data'])['code']);
+        $logout = $jwt->Logout($res['data']);
+        $this->assertSame(['status', 'code', 'message', 'data', 'error'], array_keys($logout));
+        $this->assertSame(200, $logout['code']);
         try {
             $jwt->Parse($res['data']);
             $this->fail('注销后的令牌应进入黑名单');
@@ -171,7 +202,7 @@ final class JwtTest extends TestCase
             $jwt->Parse($token);
             $this->fail('缺少 jwt_ide 的令牌应被拒绝');
         } catch (\Exception $e) {
-            $this->assertSame(ThinkJwt::INVALID_TOKEN, $e->getCode());
+            $this->assertSame(ThinkJwt::PAYLOAD_INVALID, $e->getCode());
             $this->assertStringContainsString('必要字段', $e->getMessage());
         }
     }
